@@ -1,0 +1,39 @@
+pipeline {
+    agent any
+    stages {
+        stage('Copy AMI to shared account') {
+            steps {
+                sh 'aws ec2 copy-image --source-image-id ami-1234567890 --source-region us-west-2 --encrypted --kms-key-id abcdef12-3456-7890-abcd-ef1234567890 --destination-region us-east-1'
+                sh 'aws ec2 wait image-available --region us-east-1 --image-ids ami-0987654321'
+            }
+        }
+        stage('Create CloudFormation stack if not exists') {
+            steps {
+                script {
+                    def stack_exists = sh (script: 'aws cloudformation describe-stacks --stack-name TFF-Prod --region us-east-1 || true', returnStatus: true) == 0
+                    if (!stack_exists) {
+                        sh 'aws cloudformation create-stack --stack-name TFF-Prod --region us-east-1 --template-body file://template.yaml --parameters ParameterKey=AMI,ParameterValue=ami-0987654321'
+                    }
+                }
+            }
+        }
+        stage('Get existing AMI ID from CloudFormation stack') {
+            steps {
+                script {
+                    def output = sh (script: 'aws cloudformation describe-stacks --stack-name TFF-Prod --region us-east-1 --query "Stacks[0].Outputs[?OutputKey==\'AMI\'].OutputValue" --output text', returnStdout: true).trim()
+                    env.EXISTING_AMI_ID = output
+                }
+            }
+        }
+        stage('Update CloudFormation stack with new AMI ID') {
+            steps {
+                script {
+                    def new_ami_id = sh (script: 'aws ec2 describe-images --image-ids ami-0987654321 --region us-east-1 --query "Images[0].ImageId" --output text', returnStdout: true).trim()
+                    if (new_ami_id != env.EXISTING_AMI_ID) {
+                        sh 'aws cloudformation update-stack --stack-name TFF-Prod --region us-east-1 --use-previous-template --parameters ParameterKey=AMI,ParameterValue=' + new_ami_id
+                    }
+                }
+            }
+        }        
+    }
+}
