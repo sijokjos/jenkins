@@ -24,7 +24,7 @@ resource "aws_security_group" "jenkins-sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
   tags = {
-    "Name"      = "Jenkins-sg"
+    "Name"      = "Jenkins-sg-1"
     "Terraform" = "true"
   }
 }
