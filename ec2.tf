@@ -21,6 +21,7 @@ resource "aws_instance" "jenkins" {
   instance_type   = "t2.medium"
   security_groups = [aws_security_group.jenkins-sg.name]
   key_name        = "ragu-devops"
+  root_block_device.encrypted = "true"
   provisioner "remote-exec" {
     inline = [
       "sudo amazon-linux-extras install epel -y",
